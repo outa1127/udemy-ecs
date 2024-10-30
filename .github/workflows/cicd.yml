@@ -10,7 +10,7 @@ env:
     ECS_CLUSTER: udemy-csuster
     ECS_SERVICE: my-app-api-service
     ECS_REPOSITORY: my-app-api
-    ECS_TASK_DEFINITION: cicd-section/ .aws/task-def.json
+    ECS_TASK_DEFINITION_API: cicd-section/.aws/task-def.json
 
 permissions:
     contents: read
@@ -46,5 +46,51 @@ jobs:
               run: |
                 docker image tag temp_image:latest $ECR_REGISTRY/$ECS_REPOSITORY:${{ github.sha }}
                 docker image push $ECR_REGISTRY/$ECS_REPOSITORY:${{ github.sha }}
+                echo $ECR_REGISTRY/$ECS_REPOSITORY:${{ github.sha }} > api-image-uri.txt
+            
+            - name: Upload the Image URI file as an Artifact
+              uses: actions/upload-artifact@v2
+              with:
+                name: api-image-uri
+                path: cicd-section/api/api-image-uri.txt
 
 # Deploy
+    deploy:
+      runs-on: ubuntu-latest
+      needs: [test-and-build]
+
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v4
+
+        - name: Configure AWS Credentials
+          uses: aws-actions/configure-aws-credentials@v4
+          with:
+            aws-region: ${{ env.AWS_REGION }}
+            role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+
+        - name: Download the artifact
+          uses: actions/download-artifact@v2
+          with:
+            name: api-image-uri
+            path: artifacts
+        
+        - name: Define thi Image URI
+          run: echo "API_IMAGE_URI=$( cat artifacts/api-image-uri.txt )" >> $GITHUB_ENV
+          id: define-image-uri
+
+        - name: fill in the new image URI in the amazon ECS task definition
+          id: render-task-def
+          uses: aws-actions/amazon-ecs-render-task-definition@v1
+          with:
+            task-definition: ${{ env.ECS_TASK_DEFINITION_API }}
+            container-name: api
+            image: ${{ env.API_IMAGE_URI }}
+        
+        - name: Deploy ECS Task
+          uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+          with:
+            task-definition: ${{ steps.render-task-def.outputs.task-definition }}
+            service: ${{ env.ECS_SERVICE }}
+            cluster: ${{ env.ECS_CLUSTER }}
+            wait-for-service-stability: true
