@@ -24,7 +24,7 @@ jobs:
             run:
                 working-directory: cicd-section/api
         steps:
-            # Checkout the code(コードのダウンロード)
+            # Checkout the code(コードのダウンロードを行う)
             - uses: actions/checkout@v4
 
             - name: Run Tests and Build an Image
