@@ -6,7 +6,7 @@ on:
         - 'cicd-section/api/**'
 
 env:
-    AWS_REGION: us-east-2
+    AWS_REGION: us-wast-2
     ECS_CLUSTER: udemy-csuster
     ECS_SERVICE: my-app-api-service
     ECS_REPOSITORY: my-app-api
