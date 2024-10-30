@@ -1,14 +1,50 @@
-name: Hello Github Actions!
-on: push
+name: Web API Deploy Pipeline
+on: 
+  push:
+    paths:
+        - '.github/workflows/**'
+        - 'cicd-section/api/**'
+
+env:
+    AWS_REGION: us-east-2
+    ECS_CLUSTER: udemy-csuster
+    ECS_SERVICE: my-app-api-service
+    ECS_REPOSITORY: my-app-api
+    ECS_TASK_DEFINITION: cicd-section/ .aws/task-def.json
+
+permissions:
+    contents: read
+    id-token: write    
 
 jobs:
-    hello-job:
+# Test/Build
+    test-and-build:
         runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: cicd-section/api
         steps:
-            - run: echo "Hello"
-            - run: echo "Hello, Github Actions!"
+            # Checkout the code(コードのダウンロード)
+            - uses: actions/checkout@v4
 
-    good-bye-job:
-        runs-on: ubuntu-latest
-        steps:
-            - run: echo "Good bye, Github Actions."
+            - name: Run Tests and Build an Image
+              run: docker image build -t temp_api_image:latest .
+            
+            - name: Configure AWS Credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                aws-region: ${{ env.AWS_REGION }}
+                role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+            
+            - name: Login to Amazon ECR
+              id: login-ecr
+              uses: aws-actions/amazon-ecr-login@v2
+            
+            - name: Push the Image to Amazon ECR
+              env:
+                ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+              run: |
+                docker image tag temp_image:latest $ECR_REGISTRY/$ECS_REPOSITORY:${{ github.sha }}
+                docker image push $ECR_REGISTRY/$ECS_REPOSITORY:${{ github.sha }}
+
+# Deploy
